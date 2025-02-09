@@ -5,22 +5,23 @@ from typing import Dict, List, Tuple
 import os
 
 class ChatService:
-    def __init__(self):
+    def __init__(self, vector_store):
         self.pdf_processor = PDFProcessor()
+        self.vector_store = vector_store  # ✅ Store the vector store
         self.llm = ChatOpenAI(temperature=0, api_key=os.getenv("OPENAI_API_KEY"))
         self.chat_history = []
         
     def get_response(self, message: str) -> Tuple[str, List[str]]:
         """Get response from the AI using RAG."""
         qa_chain = ConversationalRetrievalChain.from_llm(
-        llm=self.llm,
-        retriever=self.pdf_processor.vector_store.as_retriever(),
-        return_source_documents=True
+            llm=self.llm,
+            retriever=self.vector_store.as_retriever(),  # ✅ Use the passed vector store
+            return_source_documents=True
         )
         
-        result = qa_chain({
-            "question": message,
-            "chat_history": self.chat_history
+        result = qa_chain.invoke({
+        "question": message,
+        "chat_history": self.chat_history
         })
         
         self.chat_history.append((message, result["answer"]))

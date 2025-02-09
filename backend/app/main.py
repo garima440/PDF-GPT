@@ -22,6 +22,7 @@ app.add_middleware(
 pdf_processor = PDFProcessor()
 chat_service = ChatService(pdf_processor.vector_store)  # Pass vector store
 
+
 UPLOAD_DIR = "./uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
@@ -36,7 +37,10 @@ async def upload_file(file: UploadFile = File(...)):
             content = await file.read()
             buffer.write(content)
         
-        pdf_processor.process_pdf(file_path)
+        try:
+            pdf_processor.process_pdf(file_path)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error processing PDF: {str(e)}")
 
         # Delete file after processing
         os.remove(file_path)
@@ -46,7 +50,8 @@ async def upload_file(file: UploadFile = File(...)):
             document_id=file.filename
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+
 
 
 @app.post("/chat", response_model=ChatResponse)
