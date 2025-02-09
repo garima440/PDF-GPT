@@ -7,4 +7,7 @@ openai
 pypdf
 langchain-openai
 langchain-community
+pinecone-client 
+langchain_pinecone
+
 

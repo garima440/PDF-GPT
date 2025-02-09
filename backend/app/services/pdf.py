@@ -1,4 +1,6 @@
 from pypdf import PdfReader
+from pinecone import Pinecone, ServerlessSpec
+from langchain_pinecone import Pinecone as PineconeVectorStore
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
@@ -9,10 +11,27 @@ import os
 class PDFProcessor:
     def __init__(self):
         self.embeddings = OpenAIEmbeddings(api_key=os.getenv("OPENAI_API_KEY"))
-        self.vector_store = Chroma(
-            persist_directory="./data/vectorstore",
-            embedding_function=self.embeddings
-        )
+
+        # Initialize Pinecone
+        pinecone_api_key = os.getenv("PINECONE_API_KEY")
+        index_name = os.getenv("PINECONE_INDEX")
+
+        self.pinecone = Pinecone(api_key=pinecone_api_key)
+
+        # Get list of existing indexes
+        existing_indexes = [index["name"] for index in self.pinecone.list_indexes()]
+
+        # Create index if it doesn't exist
+        if index_name not in existing_indexes:
+            self.pinecone.create_index(
+                index_name,
+                dimension=1536,  
+                metric="cosine",
+                spec=ServerlessSpec(cloud="aws", region="us-east-1")
+            )
+
+        # Initialize Pinecone vector store
+        self.vector_store = PineconeVectorStore.from_existing_index(index_name, self.embeddings)
         
     def clean_text(self, text: str) -> str:
         """Clean and normalize text for better processing."""
@@ -98,17 +117,17 @@ class PDFProcessor:
             
             # Process each section
             for section in sections:
-                chunks = self.split_into_chunks(section)
                 
-                # Add to vector store with enhanced metadata
+                chunks = self.split_into_chunks(section)
+
+
+                # Store embeddings in Pinecone
                 for chunk in chunks:
                     metadata = {
                         "source": os.path.basename(file_path),
                         "page": page_num,
                         "section": chunk["section"],
-                        "length": len(chunk["content"]),
                     }
-                    
                     self.vector_store.add_texts(
                         texts=[chunk["content"]],
                         metadatas=[metadata]

@@ -13,9 +13,9 @@ class ChatService:
     def get_response(self, message: str) -> Tuple[str, List[str]]:
         """Get response from the AI using RAG."""
         qa_chain = ConversationalRetrievalChain.from_llm(
-            llm=self.llm,
-            retriever=self.pdf_processor.vector_store.as_retriever(),
-            return_source_documents=True
+        llm=self.llm,
+        retriever=self.pdf_processor.vector_store.as_retriever(),
+        return_source_documents=True
         )
         
         result = qa_chain({
