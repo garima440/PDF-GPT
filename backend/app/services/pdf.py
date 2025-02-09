@@ -134,8 +134,12 @@ class PDFProcessor:
                     )
                     
                 all_chunks.extend([chunk["content"] for chunk in chunks])
+
+        # ✅ Delete file after processing
+        os.remove(file_path)
         
         return all_chunks
+
 
     def get_relevant_chunks(self, query: str, k: int = 3) -> List[Dict]:
         """Get relevant chunks with improved context."""
