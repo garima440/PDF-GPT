@@ -7,9 +7,11 @@ from langchain_chroma import Chroma
 from typing import List, Dict, Optional
 import re
 import os
+import boto3
 
 class PDFProcessor:
     def __init__(self):
+
         self.embeddings = OpenAIEmbeddings(api_key=os.getenv("OPENAI_API_KEY"))
 
         # Initialize Pinecone
@@ -17,6 +19,14 @@ class PDFProcessor:
         index_name = os.getenv("PINECONE_INDEX")
 
         self.pinecone = Pinecone(api_key=pinecone_api_key)
+
+        # Initialize S3
+        self.s3_client = boto3.client(
+            "s3",
+            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY")
+        )
+        self.s3_bucket = os.getenv("S3_BUCKET_NAME")
 
         # Get list of existing indexes
         existing_indexes = [index["name"] for index in self.pinecone.list_indexes()]
@@ -103,28 +113,25 @@ class PDFProcessor:
         return processed_chunks
 
     def process_pdf(self, file_path: str) -> List[str]:
-        """Process PDF with improved chunking and context preservation."""
+        """Process PDF while keeping a stored copy."""
+        file_name = os.path.basename(file_path)
+        file_url = self.upload_to_s3(file_path, file_name)  # Upload file
+
         pdf_reader = PdfReader(file_path)
         all_chunks = []
-        
+
         for page_num, page in enumerate(pdf_reader.pages, start=1):
-            # Extract and clean text
             text_content = page.extract_text()
             cleaned_text = self.clean_text(text_content)
-            
-            # Get sections with context
             sections = self.get_context_window(cleaned_text)
-            
-            # Process each section
+
             for section in sections:
-                
                 chunks = self.split_into_chunks(section)
 
-
-                # Store embeddings in Pinecone
+                # Store embeddings in Pinecone with S3 URL
                 for chunk in chunks:
                     metadata = {
-                        "source": os.path.basename(file_path),
+                        "source": file_url,  # Store file URL instead of just name
                         "page": page_num,
                         "section": chunk["section"],
                     }
@@ -132,13 +139,11 @@ class PDFProcessor:
                         texts=[chunk["content"]],
                         metadatas=[metadata]
                     )
-                    
+
                 all_chunks.extend([chunk["content"] for chunk in chunks])
 
-        # ✅ Delete file after processing
-        os.remove(file_path)
-        
         return all_chunks
+
 
 
     def get_relevant_chunks(self, query: str, k: int = 3) -> List[Dict]:
@@ -161,3 +166,104 @@ class PDFProcessor:
                 break
                 
         return processed_docs[:k]
+    
+    def list_documents(self):
+        """List documents from both S3 and Pinecone."""
+        documents = set()  # Use set to avoid duplicates
+        
+        try:
+            # Get documents from S3
+            s3_response = self.s3_client.list_objects_v2(Bucket=self.s3_bucket)
+            if s3_response.get('KeyCount', 0) > 0:
+                for obj in s3_response.get("Contents", []):
+                    if obj["Key"].endswith(".pdf"):
+                        documents.add((
+                            obj["Key"],  # file_name
+                            f"https://{self.s3_bucket}.s3.amazonaws.com/{obj['Key']}"  # file_url
+                        ))
+            
+            # Get documents from Pinecone
+            index = self.pinecone.Index(os.getenv("PINECONE_INDEX"))
+            stats = index.describe_index_stats()
+            
+            # Extract unique source URLs from Pinecone metadata
+            pinecone_docs = stats.get("stats", {}).get("metadata_field_values", {}).get("source", {})
+            if pinecone_docs:
+                for url in pinecone_docs:
+                    if url.endswith(".pdf"):
+                        file_name = url.split("/")[-1]  # Extract filename from URL
+                        documents.add((file_name, url))
+            
+            # Convert set to list of dictionaries
+            return [
+                {
+                    "file_name": file_name,
+                    "file_url": file_url
+                }
+                for file_name, file_url in documents
+            ]
+            
+        except Exception as e:
+            print(f"Error listing documents: {str(e)}")
+            raise e
+
+    def delete_document(self, document_id: str):
+        """Delete document from both S3 and Pinecone."""
+        try:
+            print(f"Starting deletion of document: {document_id}")
+            
+            # Delete from S3
+            try:
+                self.s3_client.delete_object(
+                    Bucket=self.s3_bucket,
+                    Key=document_id
+                )
+                print(f"Successfully deleted from S3: {document_id}")
+            except Exception as e:
+                print(f"Error deleting from S3: {str(e)}")
+                raise e
+
+            # Delete from Pinecone
+            try:
+                # Construct the full S3 URL since that's what we stored in metadata
+                file_url = f"https://{self.s3_bucket}.s3.amazonaws.com/{document_id}"
+                print(f"Attempting to delete from Pinecone with URL: {file_url}")
+                
+                index = self.pinecone.Index(os.getenv("PINECONE_INDEX"))
+                
+                # Get the current index stats before deletion
+                before_stats = index.describe_index_stats()
+                print(f"Before deletion - Index stats: {before_stats}")
+                
+                # Delete vectors with matching source
+                delete_response = index.delete(
+                    filter={
+                        "source": file_url
+                    }
+                )
+                print(f"Pinecone delete response: {delete_response}")
+                
+                # Get the stats after deletion to verify
+                after_stats = index.describe_index_stats()
+                print(f"After deletion - Index stats: {after_stats}")
+                
+            except Exception as e:
+                print(f"Error deleting from Pinecone: {str(e)}")
+                raise e
+
+            return {"message": f"Successfully deleted {document_id} from both S3 and Pinecone"}
+            
+        except Exception as e:
+            print(f"Error in delete_document: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error deleting document: {str(e)}"
+            )
+
+
+
+    def upload_to_s3(self, file_path: str, file_name: str) -> str:
+        """Upload PDF to S3 and return its URL."""
+        self.s3_client.upload_file(file_path, self.s3_bucket, file_name)
+        file_url = f"https://{self.s3_bucket}.s3.amazonaws.com/{file_name}"
+        return file_url

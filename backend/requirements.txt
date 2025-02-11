@@ -9,5 +9,9 @@ langchain-openai
 langchain-community
 pinecone-client 
 langchain_pinecone
+langchain_chroma
+pymongo
+boto3
+
 
 
