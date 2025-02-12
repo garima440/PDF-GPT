@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { BACKEND_ROUTES } from '@/config';
 
+export const config = {
+  runtime: 'edge'
+}
+
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
