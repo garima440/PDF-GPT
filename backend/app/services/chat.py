@@ -1,3 +1,4 @@
+import re
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain.chains import ConversationalRetrievalChain
 from langchain.prompts import PromptTemplate
@@ -11,17 +12,42 @@ class ChatService:
     def __init__(self, vector_store):
         self.vector_store = vector_store
         self.llm = ChatOpenAI(
-            temperature=0.1,
+            temperature=0.01,
+            model="gpt-4-turbo-preview",
             api_key=os.getenv("OPENAI_API_KEY")
         )
         self.doc_chat_history = []
-        self.embeddings = OpenAIEmbeddings(api_key=os.getenv("OPENAI_API_KEY"))
+        self.embeddings = OpenAIEmbeddings(model="text-embedding-ada-002", api_key=os.getenv("OPENAI_API_KEY"))
 
         # Predefine general conversation queries
         self.general_queries = [
-            "hello", "hi", "how are you", "what's up", "thank you", "tell me a joke"
+            "hello", "hi", "how are you", "what's up", "thank you", "tell me a joke", "alright", "cool", "okay", "got it", "nice"
         ]
         self.general_embeddings = self.embeddings.embed_documents(self.general_queries)
+
+        # Create custom prompt template for better formatting
+        self.qa_prompt = PromptTemplate(
+        template="""You are a helpful and engaging AI assistant. Adapt your tone based on the user's question:
+
+    1. If the user is asking about a document, provide a structured and informative response:
+    - Break your answer into clear, readable paragraphs.
+    - Use bold for key terms.
+    - Cite page numbers as [Page X] ONLY if available.
+    - Use direct quotes when relevant.
+
+    2. If the user is casually chatting or does not ask about a topic in the document, keep responses friendly and conversational. Skip the sources.
+
+    Context: {context}
+
+    Chat History: {chat_history}
+
+    User: {question}
+
+    Assistant:""",
+        input_variables=["context", "chat_history", "question"]
+    )
+
+
 
         # BM25 Retriever (Keyword-based search)
         self.bm25_retriever = BM25Retriever(docs=[])
@@ -33,7 +59,7 @@ class ChatService:
             self.cosine_similarity(query_embedding, general_embedding)
             for general_embedding in self.general_embeddings
         ]
-        return max(similarity_scores) > 0.9
+        return max(similarity_scores) >= 0.69
 
     def cosine_similarity(self, vec1, vec2):
         return sum(a * b for a, b in zip(vec1, vec2)) / (
@@ -58,8 +84,10 @@ class ChatService:
             qa_chain = ConversationalRetrievalChain.from_llm(
                 llm=self.llm,
                 retriever=retriever,
-                return_source_documents=True
+                return_source_documents=True,
+                combine_docs_chain_kwargs={"prompt": self.qa_prompt}  # Use our custom prompt
             )
+            
             result = qa_chain.invoke({
                 "question": message,
                 "chat_history": self.doc_chat_history
@@ -70,30 +98,24 @@ class ChatService:
             filtered_sources = []
             
             for doc in result.get("source_documents", []):
-                # Skip if no meaningful content
                 if not doc.page_content.strip():
                     continue
                 
-                # Create a content fingerprint (first 100 chars)
                 content_key = doc.page_content[:100]
                 if content_key in seen_content:
                     continue
                 
                 seen_content.add(content_key)
                 
-                # Only include sources that are likely relevant
-                # Extract semantic similarity using embeddings instead of LLM scoring
                 relevance_score = self.cosine_similarity(
                     self.embeddings.embed_query(message),
                     self.embeddings.embed_query(doc.page_content[:200])
                 )
-                if relevance_score < 0.7:  # Adjust threshold as needed
+                if relevance_score < 0.7:
                     continue
                 
-                # Format source with better context
                 source_text = doc.page_content.strip()
                 if len(source_text) > 150:
-                    # Find the most relevant sentence
                     sentences = source_text.split('.')
                     most_relevant = max(sentences, key=lambda s: self.cosine_similarity(
                         self.embeddings.embed_query(s),
@@ -106,11 +128,13 @@ class ChatService:
                     f"(From: {os.path.basename(doc.metadata.get('source', 'Unknown'))})"
                 )
                 
-                # Limit to top 3 most relevant sources
                 if len(filtered_sources) >= 3:
                     break
 
-            return result["answer"], filtered_sources
+            # Process the response to ensure proper formatting
+            answer = result["answer"].strip()
+            
+            return answer, filtered_sources
 
         except Exception as e:
             print(f"Error in get_document_response: {str(e)}")

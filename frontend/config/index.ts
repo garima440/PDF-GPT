@@ -5,4 +5,6 @@ export const BACKEND_ROUTES = {
   UPLOAD: `${API_URL}/upload`,
   LIST: `${API_URL}/list`,
   DELETE: (filename: string) => `${API_URL}/delete/${filename}`,
+  GENERATE_UPLOAD_URL: `${API_URL}/generate-upload-url`,
+  PROCESS_UPLOAD: `${API_URL}/process-upload`,
 }

@@ -26,9 +26,9 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadStatusChange }) => {
             clearInterval(progressInterval);
             return prev;
           }
-          return prev + Math.random() * 3; // Reduced from 15 to 3 for slower progress
+          return prev + Math.random() * 10; // Reduced from 15 to 3 for slower progress
         });
-      }, 500); // Increased from 300ms to 500ms
+      }, 350); // Increased from 300ms to 500ms
     } else {
       setProgress(0);
     }

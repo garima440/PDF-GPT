@@ -12,7 +12,10 @@ import boto3
 class PDFProcessor:
     def __init__(self):
 
-        self.embeddings = OpenAIEmbeddings(api_key=os.getenv("OPENAI_API_KEY"))
+        self.embeddings = OpenAIEmbeddings(
+            model="text-embedding-ada-002",  # Explicitly specify model
+            api_key=os.getenv("OPENAI_API_KEY")
+        )
 
         # Initialize Pinecone
         pinecone_api_key = os.getenv("PINECONE_API_KEY")

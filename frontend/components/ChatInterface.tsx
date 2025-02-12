@@ -45,7 +45,7 @@ const ChatInterface: React.FC<Props> = ({ onUploadRequest }) => {
     // Add a temporary loading message
     const loadingMessage: Message = {
       role: 'assistant',
-      content: "Engaging Neural Matrix...",
+      content: "Thinking...",
       isLoading: true,
     };
     setMessages(prev => [...prev, loadingMessage]);

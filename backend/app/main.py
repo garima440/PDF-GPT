@@ -68,30 +68,21 @@ async def chat(chat_query: ChatQuery):
     print(f"Chat query received - Query: {chat_query.query}")
     
     try:
-        # First check if there are any documents
-        documents = pdf_processor.list_documents()
-        has_documents = len(documents) > 0
         
-        if has_documents:
-            print("Documents found, checking relevance")
-            response, sources = chat_service.get_document_response(chat_query.query)
-            
-            # Only return sources if we're returning a document-based response
-            if sources:  # If sources is non-empty, it means we used documents
-                return {
-                    "response": response,
-                    "sources": sources
-                }
-            else:  # If no sources, it means we fell back to general chat
-                return {
-                    "response": response
-                }
-        else:
-            print("No documents found, using general chat")
-            response = chat_service.get_general_response(chat_query.query)
+        response, sources = chat_service.get_document_response(chat_query.query)
+        
+        # Only return sources if we're returning a document-based response
+        if sources:  # If sources is non-empty, it means we used documents
+            print(f"sources: ", sources)
+            return {
+                "response": response,
+                "sources": sources
+            }
+        else:  # If no sources, it means we fell back to general chat
             return {
                 "response": response
             }
+    
     except Exception as e:
         print(f"Error in chat endpoint: {str(e)}")
         raise HTTPException(

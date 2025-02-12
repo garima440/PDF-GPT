@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { BACKEND_ROUTES } from '@/config';
 
 type DeleteParams = { filename: string };
 
@@ -19,7 +20,7 @@ export async function DELETE(
     const decodedFilename = decodeURIComponent(filename);
 
     const backendResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/documents/${decodedFilename}`,
+      BACKEND_ROUTES.DELETE(decodedFilename),
       {
         method: 'DELETE',
         headers: {
