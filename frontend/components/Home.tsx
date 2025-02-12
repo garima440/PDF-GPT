@@ -5,14 +5,19 @@ import InitialChatInterface from './InitialChatInterface';
 import ChatInterface from './ChatInterface';
 import FileUpload from './FileUpload';
 import DocumentList from './DocumentList';
-import { Bot, Sparkles, ArrowLeft, Home, Loader2 } from 'lucide-react';
+import { Bot, Sparkles, ArrowLeft, Loader2 } from 'lucide-react';
+
+type DocumentType = {
+  file_name: string;
+  file_url: string;
+}
 
 export default function HomeContent() {
   const [currentView, setCurrentView] = useState<'initial' | 'chat' | 'upload'>('initial');
   const [documentsUploaded, setDocumentsUploaded] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [previousView, setPreviousView] = useState<'initial' | 'chat' | 'upload'>('initial');
-  const [documents, setDocuments] = useState<any[]>([]); // Moved to HomeContent
+  const [documents, setDocuments] = useState<DocumentType[]>([]); // Moved to HomeContent
   const [isLoading, setIsLoading] = useState(true);   // Moved to HomeContent
   const [error, setError] = useState<string | null>(null);     // Moved to HomeContent
   const [isFirstRender, setIsFirstRender] = useState(true);
@@ -28,6 +33,7 @@ export default function HomeContent() {
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
+      
       const data = await response.json();
       console.log("HomeContent - Fetched documents:", data.documents);
       setDocuments(data.documents || []);
@@ -128,6 +134,12 @@ export default function HomeContent() {
                     <ArrowLeft className="w-5 h-5 text-gray-400" />
                   </button>
                 )}
+                {/* <button
+                  onClick={() => navigateTo('initial')}
+                  className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+                >
+                  <Home className="w-5 h-5 text-gray-400" />
+                </button> */}
                 <div className="relative">
                   <Bot className="w-8 h-8 text-purple-400" />
                   <div className="absolute inset-0 animate-pulse bg-purple-500/20 rounded-full blur-xl"></div>
@@ -217,7 +229,6 @@ export default function HomeContent() {
                   documents={documents}            // Passed as prop
                   isLoading={isLoading}            // Passed as prop
                   error={error}                    // Passed as prop
-                  fetchDocuments={fetchDocuments}  // Passed as prop
                   onDelete={handleDocumentDelete}
                   onLastDocumentDeleted={handleLastDocumentDeleted}
                 />

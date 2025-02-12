@@ -2,14 +2,14 @@
 
 import { useCallback, useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, Loader2, Scan, FileTerminal } from 'lucide-react';
+import { Loader2, Scan, FileTerminal } from 'lucide-react';
 
 interface FileUploadProps {
   onUploadComplete: () => void;
   onUploadStatusChange?: (isUploading: boolean) => void;
 }
 
-const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete, onUploadStatusChange }) => {
+const FileUpload: React.FC<FileUploadProps> = ({ onUploadStatusChange }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
@@ -74,7 +74,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete, onUploadStatu
       setIsUploading(false);
       onUploadStatusChange?.(false);
     }
-  }, [onUploadComplete, onUploadStatusChange]);
+  }, [onUploadStatusChange]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,

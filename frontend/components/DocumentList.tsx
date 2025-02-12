@@ -1,6 +1,5 @@
 import { AlertCircle, FileText, Trash2, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useRouter } from 'next/navigation';
 import React, { useState } from 'react';
 
 interface Document {
@@ -12,7 +11,6 @@ interface DocumentListProps {
   documents: Document[];
   isLoading: boolean;
   error: string | null;
-  fetchDocuments: () => Promise<void>;
   onDelete: () => void;
   onLastDocumentDeleted?: () => void;
 }
@@ -21,12 +19,12 @@ const DocumentList: React.FC<DocumentListProps> = ({
   documents,
   isLoading,
   error,
-  fetchDocuments,
+  
   onDelete,
-  onLastDocumentDeleted
+  
 }) => {
   const [deletingFiles, setDeletingFiles] = useState<Set<string>>(new Set());
-  const router = useRouter();
+  
 
   const deleteDocument = async (filename: string) => {
     setDeletingFiles(prev => new Set(prev).add(filename));

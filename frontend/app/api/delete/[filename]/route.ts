@@ -1,17 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { BACKEND_ROUTES } from '@/config';
 
-type DeleteParams = {
-  params: {
-    filename: string;
-  };
-};
+type DeleteParams = { filename: string };
 
 export async function DELETE(
-  req: NextRequest,
-  context: { params: DeleteParams["params"] }
-) {
-  const { filename } = await context.params; 
+  _request: NextRequest,
+  { params }: { params: Promise<DeleteParams> }
+): Promise<NextResponse> {
+  const { filename } = await params;
 
   if (!filename) {
     return NextResponse.json(
@@ -21,12 +16,10 @@ export async function DELETE(
   }
 
   try {
-    // Convert the filename back from URL-safe format
     const decodedFilename = decodeURIComponent(filename);
 
-    // Make the delete request to your backend
     const backendResponse = await fetch(
-      BACKEND_ROUTES.DELETE(decodedFilename),
+      `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/documents/${decodedFilename}`,
       {
         method: 'DELETE',
         headers: {
@@ -35,10 +28,8 @@ export async function DELETE(
       }
     );
 
-    // Get the response data
     const responseData = await backendResponse.json();
 
-    // If the backend request wasn't successful, return the error
     if (!backendResponse.ok) {
       return NextResponse.json(
         { error: responseData.detail || 'Failed to delete document' },
@@ -46,7 +37,6 @@ export async function DELETE(
       );
     }
 
-    // Return success response
     return NextResponse.json({
       success: true,
       message: `Successfully deleted ${decodedFilename}`
