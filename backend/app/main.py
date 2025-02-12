@@ -6,7 +6,7 @@ import os
 import boto3
 from dotenv import load_dotenv
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 load_dotenv()
@@ -30,7 +30,6 @@ chat_service = ChatService(pdf_processor.vector_store)
 
 class ChatQuery(BaseModel):
     query: str
-    useDocuments: bool = False
 
 # S3 client setup
 s3_client = boto3.client(
@@ -61,6 +60,44 @@ async def upload_file(file: UploadFile = File(...)):
 
     os.remove(file_path)
     return {"message": "Document processed successfully", "document_id": file.filename}    
+
+
+@app.post("/chat")
+async def chat(chat_query: ChatQuery):
+    """Handle chat queries by automatically checking for documents"""
+    print(f"Chat query received - Query: {chat_query.query}")
+    
+    try:
+        # First check if there are any documents
+        documents = pdf_processor.list_documents()
+        has_documents = len(documents) > 0
+        
+        if has_documents:
+            print("Documents found, checking relevance")
+            response, sources = chat_service.get_document_response(chat_query.query)
+            
+            # Only return sources if we're returning a document-based response
+            if sources:  # If sources is non-empty, it means we used documents
+                return {
+                    "response": response,
+                    "sources": sources
+                }
+            else:  # If no sources, it means we fell back to general chat
+                return {
+                    "response": response
+                }
+        else:
+            print("No documents found, using general chat")
+            response = chat_service.get_general_response(chat_query.query)
+            return {
+                "response": response
+            }
+    except Exception as e:
+        print(f"Error in chat endpoint: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        ) 
     
 @app.get("/list")
 def list_documents():
@@ -89,31 +126,8 @@ async def delete_document(filename: str):
             status_code=500,
             detail=f"Error deleting document: {str(e)}"
         )
-    
-@app.post("/chat")
-async def chat(chat_query: ChatQuery):
-    """Handle both document-based and general chat queries."""
-    try:
-        if chat_query.useDocuments:
-            # Use RAG with documents
-            chat_response, sources = chat_service.get_response(chat_query.query)
-            return {
-                "response": chat_response,
-                "sources": sources
-            }
-        else:
-            # Use general chat without documents
-            response = chat_service.llm.invoke(chat_query.query)
-            return {
-                "response": response,
-                "sources": []  # No sources for general chat
-            }
-    except Exception as e:
-        print(f"Error in chat endpoint: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"An error occurred while processing your request: {str(e)}"
-        )
+
+
 
 if __name__ == "__main__":
     import uvicorn

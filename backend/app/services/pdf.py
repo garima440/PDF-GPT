@@ -1,9 +1,9 @@
+from fastapi import HTTPException
 from pypdf import PdfReader
 from pinecone import Pinecone, ServerlessSpec
 from langchain_pinecone import Pinecone as PineconeVectorStore
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
-from langchain_chroma import Chroma
 from typing import List, Dict, Optional
 import re
 import os
@@ -141,10 +141,14 @@ class PDFProcessor:
                     )
 
                 all_chunks.extend([chunk["content"] for chunk in chunks])
+        
+        # Add this after storing embeddings
+        print(f"Stored {len(all_chunks)} chunks in Pinecone")
+        # Print a sample chunk to verify content
+        if all_chunks:
+            print(f"Sample chunk: {all_chunks[0][:200]}")
 
         return all_chunks
-
-
 
     def get_relevant_chunks(self, query: str, k: int = 3) -> List[Dict]:
         """Get relevant chunks with improved context."""
@@ -211,48 +215,54 @@ class PDFProcessor:
         """Delete document from both S3 and Pinecone."""
         try:
             print(f"Starting deletion of document: {document_id}")
-            
-            # Delete from S3
+
+            # Construct S3 file URL (since it's stored as metadata in Pinecone)
+            file_url = f"https://{self.s3_bucket}.s3.amazonaws.com/{document_id}"
+
+            # Step 1: Delete from S3
             try:
-                self.s3_client.delete_object(
-                    Bucket=self.s3_bucket,
-                    Key=document_id
-                )
-                print(f"Successfully deleted from S3: {document_id}")
+                # Check if file exists
+                s3_response = self.s3_client.list_objects_v2(Bucket=self.s3_bucket, Prefix=document_id)
+                if 'Contents' in s3_response:
+                    self.s3_client.delete_object(Bucket=self.s3_bucket, Key=document_id)
+                    print(f"Successfully deleted from S3: {document_id}")
+                else:
+                    print(f"File {document_id} not found in S3.")
             except Exception as e:
                 print(f"Error deleting from S3: {str(e)}")
                 raise e
 
-            # Delete from Pinecone
+            # Step 2: Delete embeddings from Pinecone
             try:
-                # Construct the full S3 URL since that's what we stored in metadata
-                file_url = f"https://{self.s3_bucket}.s3.amazonaws.com/{document_id}"
-                print(f"Attempting to delete from Pinecone with URL: {file_url}")
-                
                 index = self.pinecone.Index(os.getenv("PINECONE_INDEX"))
-                
-                # Get the current index stats before deletion
-                before_stats = index.describe_index_stats()
-                print(f"Before deletion - Index stats: {before_stats}")
-                
-                # Delete vectors with matching source
-                delete_response = index.delete(
-                    filter={
-                        "source": file_url
-                    }
+
+                # Search for all vector IDs related to the file
+                query_results = index.query(
+                    vector=[0] * 1536,  # Dummy vector to retrieve all metadata
+                    filter={"source": file_url},
+                    top_k=1000,  # Assuming no more than 1000 vectors per file
+                    include_metadata=True
                 )
-                print(f"Pinecone delete response: {delete_response}")
-                
-                # Get the stats after deletion to verify
+
+                # Extract vector IDs
+                vector_ids = [match["id"] for match in query_results.get("matches", [])]
+
+                if vector_ids:
+                    delete_response = index.delete(ids=vector_ids)
+                    print(f"Pinecone delete response: {delete_response}")
+                else:
+                    print("No embeddings found for deletion in Pinecone.")
+
+                # Verify deletion
                 after_stats = index.describe_index_stats()
                 print(f"After deletion - Index stats: {after_stats}")
-                
+
             except Exception as e:
                 print(f"Error deleting from Pinecone: {str(e)}")
                 raise e
 
             return {"message": f"Successfully deleted {document_id} from both S3 and Pinecone"}
-            
+
         except Exception as e:
             print(f"Error in delete_document: {str(e)}")
             raise HTTPException(

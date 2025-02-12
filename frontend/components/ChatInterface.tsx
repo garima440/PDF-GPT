@@ -1,26 +1,24 @@
 "use client"
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, User, Bot, Upload, MessageSquare, Loader2 } from 'lucide-react';
+import { Send, User, Bot, Upload, Loader2 } from 'lucide-react';
 
 type Message = {
   role: 'user' | 'assistant';
   content: string;
   sources?: string[];
+  isLoading?: boolean;  // New property to indicate loading state
 };
 
 type Props = {
-  documentsUploaded: boolean;
   onUploadRequest: () => void;
 };
 
-const ChatInterface: React.FC<Props> = ({ documentsUploaded, onUploadRequest }) => {
+const ChatInterface: React.FC<Props> = ({ onUploadRequest }) => {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: documentsUploaded 
-        ? "You can ask me questions about your documents. I'll help you analyze them."
-        : "Please upload some documents first, and I'll help you analyze them.",
+      content: "Hi! I can help you analyze your documents or answer general questions. What would you like to know?",
     }
   ]);
   const [input, setInput] = useState('');
@@ -44,14 +42,19 @@ const ChatInterface: React.FC<Props> = ({ documentsUploaded, onUploadRequest }) 
     setInput('');
     setIsLoading(true);
 
+    // Add a temporary loading message
+    const loadingMessage: Message = {
+      role: 'assistant',
+      content: "Engaging Neural Matrix...",
+      isLoading: true,
+    };
+    setMessages(prev => [...prev, loadingMessage]);
+
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          query: input,
-          useDocuments: documentsUploaded
-        }), 
+        body: JSON.stringify({ query: input })
       });
 
       if (!response.ok) {
@@ -59,41 +62,81 @@ const ChatInterface: React.FC<Props> = ({ documentsUploaded, onUploadRequest }) 
       }
 
       const data = await response.json();
-      
+
       const aiMessage: Message = {
         role: 'assistant',
         content: typeof data.response === 'string' ? data.response : data.response.content,
         sources: data.sources
       };
 
-      setMessages(prev => [...prev, aiMessage]);
+      setMessages(prev => {
+        // Remove the loading message and add the real one
+        const newMessages = [...prev];
+        newMessages.pop(); // Remove last message (loading message)
+        newMessages.push(aiMessage);
+        return newMessages;
+      });
     } catch (error) {
       console.error('Error:', error);
       const errorMessage: Message = {
         role: 'assistant',
-        content: "Sorry, I encountered an error. Please try again.",
+        content: "System Error. Re-establishing Connection...",
+        isLoading: false,
       };
-      setMessages(prev => [...prev, errorMessage]);
+      setMessages(prev => {
+        const newMessages = [...prev];
+        newMessages.pop(); // Remove loading message
+        newMessages.push(errorMessage);
+        return newMessages;
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (!documentsUploaded) {
+  // Helper function to format sources
+  const formatSources = (sources: string[]): React.ReactNode => {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-4 text-center">
-        <Upload className="w-16 h-16 text-purple-400 mb-4" />
-        <h2 className="text-xl font-semibold text-gray-200 mb-2">No Documents Yet</h2>
-        <p className="text-gray-400 mb-4">Upload some documents to start analyzing them</p>
-        <button
-          onClick={onUploadRequest}
-          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all duration-200"
-        >
-          Upload Documents
-        </button>
+      <div className="mt-2 text-xs text-gray-300 border-t border-purple-900 pt-2">
+        <p className="font-semibold text-purple-400">Transmissions Log:</p>
+        <ul className="list-none pl-0 mt-1 space-y-1">
+          {sources.map((source, idx) => {
+            const parts = source.split('(From: ');
+            const context = parts[0];
+            const filename = parts[1]?.replace(')', '') || 'Unknown Source';
+
+            return (
+              <li key={idx} className="text-gray-300">
+                <span className="text-purple-300">// Sector:</span> {filename}<br />
+                <span className="text-purple-300">// Context:</span> {context}
+              </li>
+            );
+          })}
+        </ul>
       </div>
     );
-  }
+  };
+
+  const renderMessageContent = (message: Message) => {
+    if (message.isLoading) {
+      return (
+        <div className="flex items-center space-x-3">
+          <div className="relative">
+            <div className="absolute inset-0 bg-purple-500 blur-lg rounded-full opacity-50 animate-pulse"></div>
+            <Loader2 className="w-10 h-10 text-purple-400 animate-spin z-10 relative" />
+          </div>
+          <span className="text-gray-300">{message.content}</span>
+        </div>
+      );
+    } else {
+      return (
+        <>
+          <p className="text-sm">{message.content}</p>
+          {message.sources && message.sources.length > 0 && formatSources(message.sources)}
+        </>
+      );
+    }
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -102,19 +145,19 @@ const ChatInterface: React.FC<Props> = ({ documentsUploaded, onUploadRequest }) 
         <div className="max-w-3xl mx-auto flex justify-between items-center">
           <div className="flex items-center space-x-2">
             <Bot className="w-6 h-6 text-purple-400" />
-            <span className="font-medium text-gray-200">Document Analysis</span>
+            <span className="font-medium text-gray-200">AI Assistant</span>
           </div>
           <button
             onClick={onUploadRequest}
             className="flex items-center px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors duration-200"
           >
             <Upload className="w-4 h-4 mr-1.5" />
-            Upload More
+            Upload Document
           </button>
         </div>
       </div>
 
-      {/* Scrollable Messages */}
+      {/* Messages Area */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto py-6 px-4 space-y-6">
           {messages.map((message, index) => (
@@ -128,32 +171,16 @@ const ChatInterface: React.FC<Props> = ({ documentsUploaded, onUploadRequest }) 
                   <Bot className="w-6 h-6 mr-2 flex-shrink-0" />
                 )}
                 <div>
-                  <p className="text-sm">{message.content}</p>
-                  {message.sources && message.sources.length > 0 && (
-                    <div className="mt-2 text-xs text-gray-300 border-t border-gray-700 pt-2">
-                      <p className="font-medium">Sources:</p>
-                      <ul className="list-disc pl-4 mt-1">
-                        {message.sources.map((source, idx) => (
-                          <li key={idx}>{source}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                  {renderMessageContent(message)}
                 </div>
               </div>
             </div>
           ))}
-          {isLoading && (
-            <div className="flex items-center text-gray-400 text-sm">
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Analyzing documents...
-            </div>
-          )}
           <div ref={messagesEndRef} />
         </div>
       </div>
 
-      {/* Fixed Input Area */}
+      {/* Input Area */}
       <div className="flex-shrink-0 border-t border-gray-700 bg-gray-800 p-4">
         <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
           <div className="flex gap-2">
@@ -163,7 +190,7 @@ const ChatInterface: React.FC<Props> = ({ documentsUploaded, onUploadRequest }) 
               onChange={(e) => setInput(e.target.value)}
               disabled={isLoading}
               className="flex-1 p-3 bg-gray-700 text-gray-100 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200"
-              placeholder={isLoading ? "Processing..." : "Ask about your documents..."}
+              placeholder={isLoading ? "Processing..." : "Type your message..."}
             />
             <button
               type="submit"

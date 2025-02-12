@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
 import { AlertCircle, FileText, Trash2, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useRouter } from 'next/navigation';
+import React, { useState } from 'react';
 
 interface Document {
   file_name: string;
@@ -8,54 +9,48 @@ interface Document {
 }
 
 interface DocumentListProps {
-  refreshTrigger: boolean;
+  documents: Document[];
+  isLoading: boolean;
+  error: string | null;
+  fetchDocuments: () => Promise<void>;
   onDelete: () => void;
+  onLastDocumentDeleted?: () => void;
 }
 
-const DocumentList: React.FC<DocumentListProps> = ({ refreshTrigger, onDelete }) => {
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchDocuments = async () => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const response = await fetch('/api/list');
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      setDocuments(data.documents || []);
-    } catch (err) {
-      setError("Failed to fetch documents. Please try again later.");
-      console.error("Error fetching documents:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchDocuments();
-  }, [refreshTrigger]);
+const DocumentList: React.FC<DocumentListProps> = ({
+  documents,
+  isLoading,
+  error,
+  fetchDocuments,
+  onDelete,
+  onLastDocumentDeleted
+}) => {
+  const [deletingFiles, setDeletingFiles] = useState<Set<string>>(new Set());
+  const router = useRouter();
 
   const deleteDocument = async (filename: string) => {
+    setDeletingFiles(prev => new Set(prev).add(filename));
     try {
-      const response = await fetch(`/api/delete/${filename}`, {
+      const response = await fetch(`/api/delete/${encodeURIComponent(filename)}`, {
         method: "DELETE",
       });
-      
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete document');
       }
-      
-      await response.json();
-      onDelete();
-      setDocuments((docs) => docs.filter((doc) => doc.file_name !== filename));
+
+      // Optimistically remove the document from the list
+      onDelete(); // Notify parent to re-fetch
     } catch (err) {
-      setError("Failed to delete document. Please try again.");
       console.error("Error deleting document:", err);
+      // Consider displaying an error message within this component if necessary
+    } finally {
+      setDeletingFiles(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(filename);
+        return newSet;
+      });
     }
   };
 
@@ -78,7 +73,7 @@ const DocumentList: React.FC<DocumentListProps> = ({ refreshTrigger, onDelete })
           <span className="text-xs text-purple-400">{documents.length} files</span>
         </div>
       </div>
-      
+
       {error && (
         <Alert variant="destructive" className="mb-4 bg-red-900/50 border-red-600/50">
           <AlertCircle className="h-4 w-4" />
@@ -96,7 +91,7 @@ const DocumentList: React.FC<DocumentListProps> = ({ refreshTrigger, onDelete })
       ) : (
         <div className="flex-1 overflow-y-auto space-y-2">
           {documents.map((doc) => (
-            <div 
+            <div
               key={doc.file_name}
               className="group relative p-3 rounded-lg bg-gray-800/50 border border-gray-700/50 hover:bg-gray-700/50 hover:border-purple-500/30 transition-all duration-200"
             >
@@ -110,14 +105,16 @@ const DocumentList: React.FC<DocumentListProps> = ({ refreshTrigger, onDelete })
                 </div>
                 <button
                   onClick={() => deleteDocument(doc.file_name)}
-                  className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-red-400 rounded-md hover:bg-gray-700/50 transition-all duration-200"
+                  disabled={deletingFiles.has(doc.file_name)}
+                  className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-red-400 rounded-md hover:bg-gray-700/50 transition-all duration-200 disabled:opacity-50"
                   aria-label="Delete document"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  {deletingFiles.has(doc.file_name) ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-4 h-4" />
+                  )}
                 </button>
-              </div>
-              <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                <div className="absolute inset-0 rounded-lg bg-gradient-to-r from-purple-500/10 to-transparent"></div>
               </div>
             </div>
           ))}

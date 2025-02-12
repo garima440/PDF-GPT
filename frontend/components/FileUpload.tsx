@@ -1,166 +1,174 @@
-"use client"
+"use client";
 
-import React, { useState, useCallback, useEffect } from 'react';
-import { Upload, File, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { useCallback, useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
+import { Upload, Loader2, Scan, FileTerminal } from 'lucide-react';
 
-type Props = {
+interface FileUploadProps {
   onUploadComplete: () => void;
-};
+  onUploadStatusChange?: (isUploading: boolean) => void;
+}
 
-const FileUpload: React.FC<Props> = ({ onUploadComplete }) => {
+const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete, onUploadStatusChange }) => {
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<{ name: string; status: 'success' | 'error' }[]>([]);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadMessage, setUploadMessage] = useState('');
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [scanLine, setScanLine] = useState(0);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
 
-  const funMessages = [
-    "Feeding the PDF to our hungry AI... 🤖",
-    "Teaching our robots to read... 📚",
-    "Converting coffee into analysis... ☕",
-    "Discovering hidden knowledge... 🔍",
-    "Warming up the neural networks... 🧠",
-    "Assembling the document puzzle... 🧩",
-    "Brewing some digital magic... ✨",
-    "Making our AI smarter... 📈",
-  ];
-
-  const simulateProgress = async (file: File) => {
-    for (let progress = 0; progress <= 100; progress += 5) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-      setUploadProgress(progress);
-      
-      // Change message at certain progress points
-      if (progress % 25 === 0) {
-        setUploadMessage(funMessages[Math.floor(Math.random() * funMessages.length)]);
-      }
+  // Simulate progress during upload
+  useEffect(() => {
+    let progressInterval: NodeJS.Timeout;
+    if (isUploading) {
+      progressInterval = setInterval(() => {
+        setProgress(prev => {
+          if (prev >= 96) {
+            clearInterval(progressInterval);
+            return prev;
+          }
+          return prev + Math.random() * 3; // Reduced from 15 to 3 for slower progress
+        });
+      }, 500); // Increased from 300ms to 500ms
+    } else {
+      setProgress(0);
     }
-  };
+    return () => clearInterval(progressInterval);
+  }, [isUploading]);
+
+  // Scanning animation
+  useEffect(() => {
+    const scanInterval = setInterval(() => {
+      setScanLine(prev => (prev >= 100 ? 0 : prev + 2));
+    }, 50);
+    return () => clearInterval(scanInterval);
+  }, []);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     setIsUploading(true);
-    setUploadProgress(0);
-    
-    for (let i = 0; i < acceptedFiles.length; i++) {
-      const file = acceptedFiles[i];
-      const formData = new FormData();
+    setUploadError(null);
+    onUploadStatusChange?.(true);
+
+    const formData = new FormData();
+    acceptedFiles.forEach((file) => {
       formData.append('file', file);
+    });
 
-      try {
-        // Start progress simulation
-        simulateProgress(file);
+    try {
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
 
-        const response = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (response.ok) {
-          setUploadedFiles(prev => [...prev, { name: file.name, status: 'success' }]);
-        } else {
-          setUploadedFiles(prev => [...prev, { name: file.name, status: 'error' }]);
-        }
-      } catch (error) {
-        console.error('Upload error:', error);
-        setUploadedFiles(prev => [...prev, { name: file.name, status: 'error' }]);
+      if (!response.ok) {
+        throw new Error('Upload failed');
       }
-    }
 
-    setIsUploading(false);
-    setUploadMessage('');
-  }, []);
+      const data = await response.json();
+      console.log('Upload successful:', data);
+      setProgress(100);
+      setUploadSuccess(true);
+    } catch (error) {
+      console.error('Upload error:', error);
+      setUploadError('SYSTEM ERROR: File transfer protocol interrupted. Retry sequence recommended.');
+    } finally {
+      setIsUploading(false);
+      onUploadStatusChange?.(false);
+    }
+  }, [onUploadComplete, onUploadStatusChange]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
       'application/pdf': ['.pdf']
     },
-    multiple: true
+    disabled: isUploading,
+    multiple: false
   });
 
-  const removeFile = (fileName: string) => {
-    setUploadedFiles(prev => prev.filter(file => file.name !== fileName));
-  };
-
   return (
-    <div className="w-full max-w-xl mx-auto p-8 bg-gray-900 rounded-xl shadow-lg text-gray-100">
-      <h2 className="text-3xl font-bold mb-6 text-center text-purple-400">Upload Your Documents</h2>
-      
+    <div className="w-full">
       <div
         {...getRootProps()}
-        className={`border-3 border-dashed rounded-xl p-10 text-center transition-all duration-300 ${
-          isDragActive 
-            ? 'border-purple-500 bg-purple-900 scale-105' 
-            : 'border-gray-700 hover:border-purple-400 hover:bg-gray-800'
-        }`}
+        className={`relative border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors overflow-hidden
+          ${isDragActive ? 'border-purple-500 bg-purple-500/10' : 'border-gray-600 hover:border-purple-500'}
+          ${isUploading ? 'cursor-not-allowed' : ''}`}
       >
         <input {...getInputProps()} />
-        <Upload className={`mx-auto h-20 w-20 text-purple-400 mb-4 transition-transform duration-300 ${
-          isDragActive ? 'scale-110' : ''
-        }`} />
-        <p className="text-lg text-gray-300 font-semibold">
-          {isUploading ? 'Uploading...' : isDragActive ? 'Drop it like it\'s hot! 🔥' : 'Drag & drop PDF files here'}
-        </p>
-        <p className="mt-2 text-sm text-gray-400">or click to select files</p>
-      </div>
+        
+        {/* Scanning effect */}
+        <div 
+          className="absolute left-0 w-full h-1 bg-purple-500/30"
+          style={{ 
+            top: `${scanLine}%`,
+            boxShadow: '0 0 20px rgba(168, 85, 247, 0.5)',
+            transition: 'top 0.05s linear'
+          }}
+        />
 
-      {isUploading && (
-        <div className="mt-6 space-y-3">
-          <div className="relative w-full bg-gray-700 rounded-full h-3 overflow-hidden">
-            <div 
-              className="absolute top-0 left-0 h-full bg-gradient-to-r from-purple-600 via-purple-400 to-purple-600 rounded-full transition-all duration-300"
-              style={{ 
-                width: `${uploadProgress}%`,
-                backgroundSize: '200% 100%',
-                animation: 'shimmer 2s linear infinite',
-              }}
-            />
-          </div>
-          <div className="flex items-center justify-center space-x-2">
-            <Loader2 className="w-5 h-5 animate-spin text-purple-400" />
-            <p className="text-center text-sm text-gray-400">
-              {uploadMessage || `Uploading... ${Math.round(uploadProgress)}%`}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {uploadedFiles.length > 0 && (
-        <div className="mt-8">
-          <h3 className="font-semibold mb-4 text-purple-300 text-lg">Uploaded Files:</h3>
-          <ul className="space-y-3">
-            {uploadedFiles.map((file, index) => (
-              <li key={index} className="flex items-center justify-between bg-gray-800 p-4 rounded-lg">
-                <span className="flex items-center text-sm text-gray-300">
-                  <File className="w-5 h-5 mr-3 text-purple-400" />
-                  {file.name}
-                </span>
-                <div className="flex items-center">
-                  {file.status === 'success' ? (
-                    <CheckCircle className="w-5 h-5 text-green-400 mr-2" />
-                  ) : (
-                    <AlertCircle className="w-5 h-5 text-red-400 mr-2" />
-                  )}
-                  <button
-                    onClick={() => removeFile(file.name)}
-                    className="text-red-400 hover:text-red-300 transition-colors duration-200"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
+        <div className="flex flex-col items-center justify-center space-y-4">
+          {uploadSuccess ? (
+            <>
+              <div className="relative">
+                <div className="absolute inset-0 bg-purple-500/20 rounded-full animate-pulse"></div>
+                <div className="relative w-12 h-12 text-purple-500 flex items-center justify-center">
+                  <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
                 </div>
-              </li>
-            ))}
-          </ul>
+              </div>
+              <div className="space-y-2">
+                <p className="text-gray-300 font-mono">UPLOAD COMPLETE</p>
+                <p className="text-sm text-gray-500 font-mono">Document successfully processed</p>
+                {/* <button
+                  onClick={() => onUploadComplete()}
+                  className="mt-4 px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 
+                    transition-all duration-200 font-mono flex items-center justify-center space-x-2"
+                >
+                  <span>START CHATTING</span>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button> */}
+              </div>
+            </>
+          ) : isUploading ? (
+            <>
+              <div className="relative">
+                <Loader2 className="w-12 h-12 text-purple-500 animate-spin" />
+                <Scan className="absolute top-0 left-0 w-12 h-12 text-purple-500 opacity-50" />
+              </div>
+              <div className="space-y-2">
+                <p className="text-gray-400 font-mono">ANALYZING DOCUMENT...</p>
+                <div className="w-64 h-2 bg-gray-800 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-purple-500 transition-all duration-300"
+                    style={{ 
+                      width: `${progress}%`,
+                      boxShadow: '0 0 10px rgba(168, 85, 247, 0.5)'
+                    }}
+                  />
+                </div>
+                <p className="text-sm text-gray-500 font-mono">{Math.min(100, Math.round(progress))}% COMPLETE</p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="relative">
+                <FileTerminal className="w-12 h-12 text-purple-500" />
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-purple-500 rounded-full animate-ping" />
+              </div>
+              <div>
+                <p className="text-gray-300 font-mono">INITIATE FILE TRANSFER SEQUENCE</p>
+                <p className="text-sm text-gray-500 mt-1 font-mono">ACCEPTED FORMAT: PDF</p>
+              </div>
+            </>
+          )}
         </div>
-      )}
-
-      {uploadedFiles.length > 0 && !isUploading && (
-        <button
-          onClick={onUploadComplete}
-          className="mt-8 w-full bg-purple-600 text-white py-4 px-6 rounded-xl hover:bg-purple-700 transition-all duration-300 text-lg font-semibold shadow-md hover:shadow-lg transform hover:-translate-y-1"
-        >
-          Start Analyzing Documents
-        </button>
+      </div>
+      {uploadError && (
+        <div className="mt-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg">
+          <p className="text-red-300 text-sm font-mono">[ERROR_CODE_X7]: {uploadError}</p>
+        </div>
       )}
     </div>
   );

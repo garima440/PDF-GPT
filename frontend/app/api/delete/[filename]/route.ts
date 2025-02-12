@@ -1,10 +1,18 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+
+type DeleteParams = {
+  params: {
+    filename: string;
+  };
+};
 
 export async function DELETE(
-  request: Request,
-  { params }: { params: { filename: string } }
+  req: NextRequest,
+  context: { params: DeleteParams["params"] }
 ) {
-  if (!params?.filename) {
+  const { filename } = await context.params; // Await params properly
+
+  if (!filename) {
     return NextResponse.json(
       { error: 'Filename is required' },
       { status: 400 }
@@ -12,23 +20,41 @@ export async function DELETE(
   }
 
   try {
-    const response = await fetch(`http://localhost:8000/delete/${params.filename}`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    // Convert the filename back from URL-safe format
+    const decodedFilename = decodeURIComponent(filename);
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    // Make the delete request to your backend
+    const backendResponse = await fetch(
+      `http://localhost:8000/delete/${decodedFilename}`,
+      {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    // Get the response data
+    const responseData = await backendResponse.json();
+
+    // If the backend request wasn't successful, return the error
+    if (!backendResponse.ok) {
+      return NextResponse.json(
+        { error: responseData.detail || 'Failed to delete document' },
+        { status: backendResponse.status }
+      );
     }
 
-    const data = await response.json();
-    return NextResponse.json(data);
+    // Return success response
+    return NextResponse.json({
+      success: true,
+      message: `Successfully deleted ${decodedFilename}`
+    });
+
   } catch (error) {
     console.error('Error in delete route:', error);
     return NextResponse.json(
-      { error: 'Failed to delete document' },
+      { error: 'Internal server error during deletion' },
       { status: 500 }
     );
   }
