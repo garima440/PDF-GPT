@@ -6,11 +6,13 @@ import { Upload, MessageSquare } from 'lucide-react';
 interface InitialChatInterfaceProps {
   onUploadRequest: () => void;
   onChatRequest: () => void;
+  documentsUploaded: boolean; // Added this prop
 }
 
 const InitialChatInterface: React.FC<InitialChatInterfaceProps> = ({
   onUploadRequest,
   onChatRequest,
+  documentsUploaded
 }) => {
   return (
     <div className="h-full flex items-center justify-center p-8">
@@ -50,9 +52,11 @@ const InitialChatInterface: React.FC<InitialChatInterfaceProps> = ({
           {/* Chat Card */}
           <button
             onClick={onChatRequest}
-            className="group relative bg-gray-800/50 rounded-xl p-6 hover:bg-gray-800 
+            className={`group relative bg-gray-800/50 rounded-xl p-6
               transition-all duration-200 border border-gray-700/50
-              hover:border-purple-500/50 hover:shadow-lg hover:shadow-purple-500/20"
+              ${documentsUploaded 
+                ? 'hover:bg-gray-800 hover:border-purple-500/50 hover:shadow-lg hover:shadow-purple-500/20' 
+                : 'opacity-75 cursor-help'}`}
           >
             <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-transparent 
               rounded-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
@@ -62,7 +66,9 @@ const InitialChatInterface: React.FC<InitialChatInterfaceProps> = ({
               </div>
               <h3 className="text-xl font-semibold text-white">Chat About Documents</h3>
               <p className="text-gray-400">
-                Ask questions about your documents and get instant, AI-powered responses and insights.
+                {documentsUploaded 
+                  ? "Ask questions about your documents and get instant, AI-powered responses and insights."
+                  : "Upload documents first to start chatting with the AI about your content."}
               </p>
             </div>
           </button>

@@ -96,23 +96,38 @@ const ChatInterface: React.FC<Props> = ({ onUploadRequest }) => {
 
   // Helper function to format sources
   const formatSources = (sources: string[]): React.ReactNode => {
-    // Filter out unknown sources
-    const filteredSources = sources.filter(source => !source.includes("Unknown Source"));
-
+    // Helper function to check if context is meaningful
+    const isValidContext = (context: string): boolean => {
+      // Remove page numbers like [Page 1.0] or similar
+      const withoutPageNum = context.replace(/\[Page \d+\.?\d*\]/g, '');
+      // Remove all whitespace, periods, and common punctuation
+      const cleaned = withoutPageNum.replace(/[\s\.,]+/g, '');
+      // Check if there's any meaningful content left
+      return cleaned.length >= 2;
+    };
+  
+    // Filter out invalid sources
+    const filteredSources = sources.filter(source => {
+      const parts = source.split('(From: ');
+      const context = parts[0];
+      return !source.includes("Unknown Source") && isValidContext(context);
+    });
+  
     if (filteredSources.length === 0) return null;
-      return (
+    
+    return (
       <div className="mt-4 text-xs border-t border-purple-900/50 pt-3">
         <div className="flex items-center mb-3">
           <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse" />
           <p className="font-semibold text-purple-400 ml-2 tracking-wide uppercase">Page Sources</p>
-          <div className="ml-2 text-purple-300/50 text-[10px]">{sources.length} connected</div>
+          <div className="ml-2 text-purple-300/50 text-[10px]">{filteredSources.length} connected</div>
         </div>
         <div className="space-y-3">
-          {sources.map((source, idx) => {
+          {filteredSources.map((source, idx) => {
             const parts = source.split('(From: ');
             const context = parts[0];
             const filename = parts[1]?.replace(')', '') || 'Unknown Source';
-
+  
             return (
               <div 
                 key={idx} 
@@ -139,7 +154,7 @@ const ChatInterface: React.FC<Props> = ({ onUploadRequest }) => {
       </div>
     );
   };
-
+  
   const renderMessageContent = (message: Message) => {
     if (message.isLoading) {
       return (

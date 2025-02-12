@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react'; // Import useCallback
+import { useState, useEffect, useCallback } from 'react';
 import InitialChatInterface from './InitialChatInterface';
 import ChatInterface from './ChatInterface';
 import FileUpload from './FileUpload';
@@ -17,12 +17,12 @@ export default function HomeContent() {
   const [documentsUploaded, setDocumentsUploaded] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [previousView, setPreviousView] = useState<'initial' | 'chat' | 'upload'>('initial');
-  const [documents, setDocuments] = useState<DocumentType[]>([]); // Moved to HomeContent
-  const [isLoading, setIsLoading] = useState(true);   // Moved to HomeContent
-  const [error, setError] = useState<string | null>(null);     // Moved to HomeContent
+  const [documents, setDocuments] = useState<DocumentType[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isFirstRender, setIsFirstRender] = useState(true);
+  const [chatKey, setChatKey] = useState(0);
 
-  // Debounced fetchDocuments function (Optional)
   const fetchDocuments = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -36,16 +36,17 @@ export default function HomeContent() {
       
       const data = await response.json();
       console.log("HomeContent - Fetched documents:", data.documents);
-      setDocuments(data.documents || []);
-      setDocumentsUploaded(data.documents && data.documents.length > 0); // Update documentsUploaded
+      if (data.documents && Array.isArray(data.documents)) {
+        setDocuments(data.documents);
+        setDocumentsUploaded(data.documents.length > 0);
+      }
     } catch (err) {
-      setError("Failed to fetch documents. Please try again later.");
       console.error("Error fetching documents:", err);
+      setError("Failed to fetch documents. Please try again later.");
     } finally {
       setIsLoading(false);
     }
   }, []);
-
 
   const handleDocumentDelete = async () => {
     await fetchDocuments();
@@ -56,14 +57,12 @@ export default function HomeContent() {
     setDocumentsUploaded(false);
   };
 
-  // Fetch documents on mount and when view changes to chat
   useEffect(() => {
     if (isFirstRender) {
       fetchDocuments();
       setIsFirstRender(false);
     }
-  }, [fetchDocuments, isFirstRender]); // Add fetchDocuments as dependency
-
+  }, [fetchDocuments, isFirstRender]);
 
   useEffect(() => {
     if (currentView === 'chat') {
@@ -85,19 +84,24 @@ export default function HomeContent() {
         documents: data.documents
       });
       setDocumentsUploaded(hasDocuments);
+      if (data.documents) {
+        setDocuments(data.documents);
+      }
     } catch (error) {
       console.error('Error checking documents:', error);
     }
   };
 
-  // Track state changes
-  useEffect(() => {
-    console.log("HomeContent - State Update:", {
-      currentView,
-      documentsUploaded,
-      isUploading
-    });
-  }, [currentView, documentsUploaded, isUploading]);
+  const handleUploadComplete = async () => {
+    try {
+      await fetchDocuments();
+      setDocumentsUploaded(true);
+      setChatKey(prev => prev + 1);
+      navigateTo('chat');
+    } catch (error) {
+      console.error('Error handling upload complete:', error);
+    }
+  };
 
   const navigateTo = async (view: 'initial' | 'chat' | 'upload') => {
     console.log("HomeContent - Navigating to:", view);
@@ -114,6 +118,16 @@ export default function HomeContent() {
 
   const handleUploadStatusChange = (status: boolean) => {
     setIsUploading(status);
+  };
+
+  const handleChatRequest = async () => {
+    await checkDocuments();
+    
+    if (documentsUploaded) {
+      navigateTo('chat');
+    } else {
+      navigateTo('upload');
+    }
   };
 
   return (
@@ -134,12 +148,6 @@ export default function HomeContent() {
                     <ArrowLeft className="w-5 h-5 text-gray-400" />
                   </button>
                 )}
-                {/* <button
-                  onClick={() => navigateTo('initial')}
-                  className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
-                >
-                  <Home className="w-5 h-5 text-gray-400" />
-                </button> */}
                 <div className="relative">
                   <Bot className="w-8 h-8 text-purple-400" />
                   <div className="absolute inset-0 animate-pulse bg-purple-500/20 rounded-full blur-xl"></div>
@@ -174,7 +182,8 @@ export default function HomeContent() {
                 <div className="absolute inset-0">
                   <InitialChatInterface
                     onUploadRequest={() => navigateTo('upload')}
-                    onChatRequest={() => navigateTo('chat')}
+                    onChatRequest={handleChatRequest}
+                    documentsUploaded={documentsUploaded}
                   />
                 </div>
               )}
@@ -182,11 +191,7 @@ export default function HomeContent() {
                 <div className="h-full flex items-center justify-center p-4">
                   <div className="w-full max-w-lg space-y-6">
                     <FileUpload
-                      onUploadComplete={() => {
-                        fetchDocuments(); // Moved to HomeContent
-                        navigateTo('chat');
-                        setDocumentsUploaded(true);
-                      }}
+                      onUploadComplete={handleUploadComplete}
                       onUploadStatusChange={handleUploadStatusChange}
                     />
                     <button
@@ -214,6 +219,7 @@ export default function HomeContent() {
               {currentView === 'chat' && (
                 <div className="absolute inset-0">
                   <ChatInterface
+                    key={chatKey}
                     onUploadRequest={() => navigateTo('upload')}
                   />
                 </div>
@@ -226,9 +232,10 @@ export default function HomeContent() {
             <aside className="w-80 border-l border-gray-700/50 bg-gray-800/50 backdrop-blur-sm">
               <div className="h-full">
                 <DocumentList
-                  documents={documents}            // Passed as prop
-                  isLoading={isLoading}            // Passed as prop
-                  error={error}                    // Passed as prop
+                  key={chatKey}
+                  documents={documents}
+                  isLoading={isLoading}
+                  error={error}
                   onDelete={handleDocumentDelete}
                   onLastDocumentDeleted={handleLastDocumentDeleted}
                 />
