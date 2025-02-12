@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { BACKEND_ROUTES } from '@/config';
 
 type DeleteParams = {
   params: {
@@ -10,7 +11,7 @@ export async function DELETE(
   req: NextRequest,
   context: { params: DeleteParams["params"] }
 ) {
-  const { filename } = await context.params; // Await params properly
+  const { filename } = await context.params; 
 
   if (!filename) {
     return NextResponse.json(
@@ -25,7 +26,7 @@ export async function DELETE(
 
     // Make the delete request to your backend
     const backendResponse = await fetch(
-      `http://localhost:8000/delete/${decodedFilename}`,
+      BACKEND_ROUTES.DELETE(decodedFilename),
       {
         method: 'DELETE',
         headers: {

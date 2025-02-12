@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
+import { BACKEND_ROUTES } from '@/config';
 
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
     
     // Forward to Python backend
-    const response = await fetch('http://localhost:8000/upload', {
+    const response = await fetch(BACKEND_ROUTES.UPLOAD, {
       method: 'POST',
       body: formData,
     });

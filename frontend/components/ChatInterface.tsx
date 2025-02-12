@@ -97,22 +97,41 @@ const ChatInterface: React.FC<Props> = ({ onUploadRequest }) => {
   // Helper function to format sources
   const formatSources = (sources: string[]): React.ReactNode => {
     return (
-      <div className="mt-2 text-xs text-gray-300 border-t border-purple-900 pt-2">
-        <p className="font-semibold text-purple-400">Transmissions Log:</p>
-        <ul className="list-none pl-0 mt-1 space-y-1">
+      <div className="mt-4 text-xs border-t border-purple-900/50 pt-3">
+        <div className="flex items-center mb-3">
+          <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse" />
+          <p className="font-semibold text-purple-400 ml-2 tracking-wide uppercase">Neural Cortex Links</p>
+          <div className="ml-2 text-purple-300/50 text-[10px]">{sources.length} connected</div>
+        </div>
+        <div className="space-y-3">
           {sources.map((source, idx) => {
             const parts = source.split('(From: ');
             const context = parts[0];
             const filename = parts[1]?.replace(')', '') || 'Unknown Source';
 
             return (
-              <li key={idx} className="text-gray-300">
-                <span className="text-purple-300">// Sector:</span> {filename}<br />
-                <span className="text-purple-300">// Context:</span> {context}
-              </li>
+              <div 
+                key={idx} 
+                className="bg-gray-800/30 backdrop-blur-sm rounded-lg p-3 border border-purple-900/20 relative overflow-hidden hover:border-purple-700/40 transition-all duration-300"
+              >
+                <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-purple-900/0 via-purple-600/20 to-purple-900/0" />
+                <div className="flex items-center mb-2">
+                  <div className="flex items-center bg-purple-950/50 rounded-md px-2 py-1">
+                    <span className="text-purple-400 font-medium tracking-wide text-[10px] uppercase">Matrix Node</span>
+                    <span className="ml-2 text-gray-300 font-mono">{String(idx + 1).padStart(2, '0')}</span>
+                  </div>
+                  <div className="ml-3 text-gray-400 font-medium truncate">
+                    {filename}
+                  </div>
+                </div>
+                <div className="text-gray-400 leading-relaxed bg-purple-950/10 rounded p-2 border border-purple-900/10">
+                  {context}
+                </div>
+                <div className="absolute bottom-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-purple-600/20 to-transparent" />
+              </div>
             );
           })}
-        </ul>
+        </div>
       </div>
     );
   };

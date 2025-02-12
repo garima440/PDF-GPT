@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
+import { BACKEND_ROUTES } from '@/config';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { query } = body;
+   
 
-    const response = await fetch('http://localhost:8000/chat', {
+    const response = await fetch(BACKEND_ROUTES.CHAT, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -1,9 +1,10 @@
 // frontend/api/list/route.ts
 import { NextResponse } from 'next/server';
+import { BACKEND_ROUTES } from '@/config';
 
 export async function GET() {
   try {
-    const response = await fetch('http://localhost:8000/list', {
+    const response = await fetch(BACKEND_ROUTES.LIST, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
