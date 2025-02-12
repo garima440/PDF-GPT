@@ -21,7 +21,7 @@ class ChatService:
 
         # Predefine general conversation queries
         self.general_queries = [
-            "hello", "hi", "how are you", "what's up", "thank you", "tell me a joke", "alright", "cool", "okay", "got it", "nice"
+            "hello", "hi", "how are you", "what's up", "thank you", "tell me a joke", "alright", "cool", "okay", "got it", "nice", "great"
         ]
         self.general_embeddings = self.embeddings.embed_documents(self.general_queries)
 
@@ -31,8 +31,6 @@ class ChatService:
 
     1. If the user is asking about a document, provide a structured and informative response:
     - Break your answer into clear, readable paragraphs.
-    - Use bold for key terms.
-    - Cite page numbers as [Page X] ONLY if available.
     - Use direct quotes when relevant.
 
     2. If the user is casually chatting or does not ask about a topic in the document, keep responses friendly and conversational. Skip the sources.
@@ -59,7 +57,7 @@ class ChatService:
             self.cosine_similarity(query_embedding, general_embedding)
             for general_embedding in self.general_embeddings
         ]
-        return max(similarity_scores) >= 0.69
+        return max(similarity_scores) >= 0.8
 
     def cosine_similarity(self, vec1, vec2):
         return sum(a * b for a, b in zip(vec1, vec2)) / (

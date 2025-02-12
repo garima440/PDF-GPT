@@ -96,11 +96,15 @@ const ChatInterface: React.FC<Props> = ({ onUploadRequest }) => {
 
   // Helper function to format sources
   const formatSources = (sources: string[]): React.ReactNode => {
-    return (
+    // Filter out unknown sources
+    const filteredSources = sources.filter(source => !source.includes("Unknown Source"));
+
+    if (filteredSources.length === 0) return null;
+      return (
       <div className="mt-4 text-xs border-t border-purple-900/50 pt-3">
         <div className="flex items-center mb-3">
           <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse" />
-          <p className="font-semibold text-purple-400 ml-2 tracking-wide uppercase">Neural Cortex Links</p>
+          <p className="font-semibold text-purple-400 ml-2 tracking-wide uppercase">Page Sources</p>
           <div className="ml-2 text-purple-300/50 text-[10px]">{sources.length} connected</div>
         </div>
         <div className="space-y-3">
@@ -117,7 +121,7 @@ const ChatInterface: React.FC<Props> = ({ onUploadRequest }) => {
                 <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-purple-900/0 via-purple-600/20 to-purple-900/0" />
                 <div className="flex items-center mb-2">
                   <div className="flex items-center bg-purple-950/50 rounded-md px-2 py-1">
-                    <span className="text-purple-400 font-medium tracking-wide text-[10px] uppercase">Matrix Node</span>
+                    <span className="text-purple-400 font-medium tracking-wide text-[10px] uppercase">Source</span>
                     <span className="ml-2 text-gray-300 font-mono">{String(idx + 1).padStart(2, '0')}</span>
                   </div>
                   <div className="ml-3 text-gray-400 font-medium truncate">
