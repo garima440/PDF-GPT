@@ -91,7 +91,7 @@ uvicorn app.main:app --reload
 - Document context-aware responses / general responses
 - Document management (upload, delete)
 - Responsive design
-- Secure file handling
+
 
 ## Tech Stack
 
